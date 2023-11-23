@@ -1,6 +1,6 @@
-FROM debian:12-slim
+FROM arm64v8/debian:12-slim
 
-LABEL maintainer="Akkadius <akkadius1@gmail.com>"
+LABEL maintainer="Shaggybritches <https://github.com/shaggybritches/akk-stack-arm64/>"
 
 ENV DEBIAN_FRONTEND noninteractive
 
