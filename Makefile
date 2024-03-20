@@ -78,6 +78,27 @@ ifneq ($(ip-address),)
 endif
 
 #----------------------
+# services
+#----------------------
+
+RUN_SERVICES=
+ifeq ($(ENABLE_FTP_QUESTS),true)
+	RUN_SERVICES+= ftp-quests
+endif
+
+ifeq ($(ENABLE_PHPMYADMIN),true)
+	RUN_SERVICES+= phpmyadmin
+endif
+
+ifeq ($(ENABLE_PEQ_EDITOR),true)
+	RUN_SERVICES+= peq-editor
+endif
+
+ifeq ($(ENABLE_BACKUP_CRON),true)
+	RUN_SERVICES+= backup-cron
+endif
+
+#----------------------
 # env
 #----------------------
 
@@ -96,12 +117,12 @@ install: ##@init Install full application port-range-high=[] ip-address=[]
 	$(DOCKER) build mariadb
 	make up detached
 	@assets/scripts/env-set-var.pl
-	$(DOCKER) exec mariadb bash -c 'while ! mysqladmin status -uroot -p${MARIADB_ROOT_PASSWORD} -h "localhost" --silent; do sleep .5; done;'
+	$(DOCKER) exec mariadb bash -c 'while ! mysqladmin status -uroot -p${MARIADB_ROOT_PASSWORD} -h "localhost" --silent; do sleep .5; done; sleep 5'
 	make init-strip-mysql-remote-root
 	$(DOCKER) exec eqemu-server bash -c "make install"
 	make init-peq-editor
-	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) down --timeout 3
-	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) up -d
+	make down
+	make up
 	make up-info
 
 init-strip-mysql-remote-root: ##@init Strips MySQL remote root user
@@ -113,9 +134,7 @@ init-reset-env: ##@init Resets .env
 
 init-peq-editor: ##@init Initializes PEQ editor
 	$(DOCKER) build peq-editor && $(DOCKER) up -d peq-editor
-	$(DOCKER) exec peq-editor bash -c "git clone https://github.com/ProjectEQ/peqphpeditor.git /var/www/html || cd /var/www/html; git pull && \
-    	cd /var/www/html/ && cp config.php.dist config.php && \
-    	chown www-data:www-data /var/www/html -R"
+	$(DOCKER) exec peq-editor bash -c "git config --global --add safe.directory '*'; chown www-data:www-data -R /var/www/html && git -C /var/www/html pull 2> /dev/null || git clone https://github.com/ProjectEQ/peqphpeditor.git /var/www/html && cd /var/www/html/ && cp config.php.dist config.php"
 	$(DOCKER) exec eqemu-server bash -c "make init-peq-editor"
 
 #----------------------
@@ -142,18 +161,18 @@ image-build-push-all: ##@image-build Build and push all images
 
 image-eqemu-server-build: ##@image-build Builds image
 	docker build containers/eqemu-server -t akkadius/eqemu-server:latest
-	docker build containers/eqemu-server -t akkadius/eqemu-server:v13
+	docker build containers/eqemu-server -t akkadius/eqemu-server:v14
 
 image-eqemu-server-build-dev: ##@image-build Builds image (development)
 	make image-eqemu-server-build
-	docker build -f ./containers/eqemu-server/dev.dockerfile ./containers/eqemu-server -t akkadius/eqemu-server:v13-dev
+	docker build -f ./containers/eqemu-server/dev.dockerfile ./containers/eqemu-server -t akkadius/eqemu-server:v14-dev
 
 image-eqemu-server-push: ##@image-build Publishes image
 	docker push akkadius/eqemu-server:latest
-	docker push akkadius/eqemu-server:v13
+	docker push akkadius/eqemu-server:v14
 
 image-eqemu-server-push-dev: ##@image-build Publishes image
-	docker push akkadius/eqemu-server:v13-dev
+	docker push akkadius/eqemu-server:v14-dev
 
 # peq-editor
 
@@ -201,7 +220,7 @@ watch-processes: ##@workflow Watch processes
 #----------------------
 
 up: ##@docker Bring up eqemu-server and database
-	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) up -d eqemu-server mariadb
+	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) up -d eqemu-server mariadb $(RUN_SERVICES)
 	make up-info
 
 down: ##@docker Down all containers
@@ -224,7 +243,7 @@ env-scramble-secrets: ##@env Scrambles secrets
 env-set-zone-port-range-high: ##@env Set zone port range high value
 	$(DOCKER) up -d eqemu-server
 	@assets/scripts/env-set-var.pl PORT_RANGE_HIGH $(RUN_ARGS)
-	$(DOCKER) exec eqemu-server bash -c "cat ~/server/eqemu_config.json | jq '.server.zones.ports.high = "${PORT_RANGE_HIGH}"' | tee ~/server/eqemu_config.json"
+	$(DOCKER) exec eqemu-server bash -c "cat ~/server/eqemu_config.json | jq '.server.zones.ports.high = "${PORT_RANGE_HIGH}"' -M > /tmp/config.json && mv /tmp/config.json ~/server/eqemu_config.json && rm -f /tmp/config.json"
 	$(DOCKER) up -d --force-recreate eqemu-server
 
 #----------------------
