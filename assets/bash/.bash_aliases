@@ -38,6 +38,8 @@ alias r='m && z &'
 alias n='cd ~/code/build && ninja -j$(expr $(nproc) - 2)'
 alias nz='cd ~/code/build && ninja-j$(expr $(nproc) - 2) && pkill -9 zone && z'
 
+alias repogen='cd ~/code && perl ~/code/utils/scripts/generators/repository-generator.pl ~/server/'
+
 ######################################
 # Help
 ######################################
@@ -77,6 +79,19 @@ fi
 alias mc='cd ~/ && make mgmt-mc'
 
 ~/assets/scripts/terminal-help.sh
+
+alias spirewatch='(
+tmux kill-session -t spire || true
+tmux new-session -d -s spire bash
+
+# Split horizontally (top 20%, bottom 80%)
+tmux split-window -v -t spire:0.0 -p 20 bash
+
+tmux send -t spire:0.0 "spire-be" C-m  # Top pane (20%)
+tmux send -t spire:0.1 "spire-fe" C-m  # Bottom pane (80%)
+
+tmux -u -2 attach-session -d -t spire
+)'
 
 # export LC_CTYPE=en_US.UTF-8
 export LC_ALL=C
